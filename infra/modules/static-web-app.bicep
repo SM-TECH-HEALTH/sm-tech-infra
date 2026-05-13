@@ -1,15 +1,26 @@
+@description('Regiao Azure do Static Web App.')
 param location string
+
+@description('Nome do ambiente azd.')
 param environmentName string
-param resourceToken string
 
-@allowed(['Free', 'Standard'])
-param skuName string
+@description('Nome do Azure Static Web App.')
+param staticWebAppName string
 
-var siteName = 'stapp-${take(resourceToken, 20)}'
+@allowed([
+  'Free'
+  'Standard'
+])
+@description('SKU do Azure Static Web App.')
+param skuName string = 'Free'
 
-resource staticSite 'Microsoft.Web/staticSites@2023-12-01' = {
-  name: siteName
+resource staticWebApp 'Microsoft.Web/staticSites@2023-12-01' = {
+  name: staticWebAppName
   location: location
+  tags: {
+    'azd-env-name': environmentName
+    'azd-service-name': 'web'
+  }
   sku: {
     name: skuName
     tier: skuName
@@ -17,11 +28,7 @@ resource staticSite 'Microsoft.Web/staticSites@2023-12-01' = {
   properties: {
     allowConfigFileUpdates: true
   }
-  tags: {
-    'azd-service-name': 'web'
-    'azd-env-name': environmentName
-  }
 }
 
-output defaultHostname string = staticSite.properties.defaultHostname
-output staticSiteName string = staticSite.name
+output name string = staticWebApp.name
+output defaultHostname string = staticWebApp.properties.defaultHostname

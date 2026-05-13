@@ -1,27 +1,26 @@
-# Azure Developer CLI (https://learn.microsoft.com/azure/developer/azure-developer-cli/)
-# Raiz: sm-tech-infra. sm-tech-back e sm-tech-front devem ser pastas irmãs desta raiz.
-# Antes de provisionar:
-#   azd env set ENVIRONMENT_TYPE dev   # ou prod
-#   azd env set POSTGRES_ADMIN_PASSWORD "<password-seguro>"
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
 name: sm-tech
 metadata:
-  template: azd@1.0.0
-services:
-  api:
-    project: ./sm-tech-back
-    language: dotnet
-    host: containerapp
-    docker:
-      path: Dockerfile
-  web:
-    project: ./sm-tech-front
-    language: js
-    host: staticwebapp
-    dist: dist/sm-tech-front/browser
+  template: sm-tech@0.1.0
+
 infra:
   provider: bicep
   path: infra
   module: main
-  parameters:
-    environmentType: ${ENVIRONMENT_TYPE}
-    postgresAdminPassword: ${POSTGRES_ADMIN_PASSWORD}
+
+pipeline:
+  provider: github
+
+services:
+  api:
+    project: ../sm-tech-back
+    language: docker
+    host: containerapp
+    docker:
+      path: Dockerfile
+      context: .
+  web:
+    project: ../sm-tech-front
+    language: js
+    host: staticwebapp
+    dist: dist/sm-tech-front/browser

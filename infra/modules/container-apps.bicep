@@ -1,144 +1,187 @@
+@description('Regiao Azure dos recursos de Container Apps.')
 param location string
+
+@description('Nome do ambiente azd.')
 param environmentName string
 
-@allowed(['dev', 'prod'])
-param environmentType string
+@allowed([
+  'dev'
+  'prod'
+])
+@description('Tipo do ambiente para diferenciar escala.')
+param environmentType string = 'dev'
 
-param resourceToken string
+@description('Object ID do principal usado pelo pipeline. Recebe AcrPush quando informado.')
+param principalId string = ''
 
-param postgresHost string
-param postgresDb string
-param postgresUser string
+@description('Nome do Container App da API.')
+param containerAppName string
+
+@description('Nome do Container Apps Environment.')
+param containerAppsEnvironmentName string
+
+@description('Nome do Azure Container Registry.')
+param containerRegistryName string
+
+@description('Nome do Log Analytics Workspace.')
+param logAnalyticsWorkspaceName string
 
 @secure()
-param postgresPassword string
+@description('Connection string PostgreSQL usada pela API.')
+param postgresConnectionString string
 
-param serviceName string
+@secure()
+@description('Chave JWT usada pela API.')
+param jwtSecretKey string
 
-var workspaceName = 'log-${take(resourceToken, 20)}'
-var envName = 'cae-${take(resourceToken, 20)}'
-var appName = 'ca-${take(resourceToken, 20)}'
-var identityName = 'id-${take(resourceToken, 20)}'
+@description('Origem permitida para CORS.')
+param corsAllowedOrigin string
 
-var acrName = take(toLower('acr${uniqueString(subscription().id, resourceGroup().id, environmentName)}'), 50)
-
-var bootstrapImage = 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
-var bootstrapPort = 80
-
-resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
-  name: workspaceName
-  location: location
-  properties: {
-    sku: {
-      name: 'PerGB2018'
-    }
-    retentionInDays: 30
-  }
-}
-
-resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2024-03-01' = {
-  name: envName
-  location: location
-  properties: {
-    appLogsConfiguration: {
-      destination: 'log-analytics'
-      logAnalyticsConfiguration: {
-        customerId: logAnalytics.properties.customerId
-        sharedKey: logAnalytics.listKeys().primarySharedKey
-      }
-    }
-  }
-  dependsOn: [logAnalytics]
-}
+var acrPushRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8311e382-0749-4cb8-b61a-304f252e45ec')
+var acrPullRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
 
 resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
-  name: acrName
+  name: containerRegistryName
   location: location
+  tags: {
+    'azd-env-name': environmentName
+  }
   sku: {
     name: 'Basic'
   }
   properties: {
     adminUserEnabled: false
-    publicNetworkAccess: 'Enabled'
   }
 }
 
-resource acrPullIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: identityName
-  location: location
-}
-
-resource acrPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(containerRegistry.id, acrPullIdentity.id, 'AcrPull')
+resource pipelineAcrPush 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(principalId)) {
+  name: guid(containerRegistry.id, principalId, 'AcrPush')
   scope: containerRegistry
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7dfe7d4a-4950-4f3a-9939-0f2e0f63ee17')
-    principalId: acrPullIdentity.properties.principalId
+    principalId: principalId
+    roleDefinitionId: acrPushRoleDefinitionId
     principalType: 'ServicePrincipal'
   }
-  dependsOn: [acrPullIdentity]
 }
 
-resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
-  name: appName
+resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
+  name: logAnalyticsWorkspaceName
   location: location
   tags: {
-    'azd-service-name': serviceName
     'azd-env-name': environmentName
   }
-  identity: {
-    type: 'UserAssigned'
-    userAssignedIdentities: {
-      '${acrPullIdentity.id}': {}
+  properties: {
+    sku: {
+      name: 'PerGB2018'
     }
+    retentionInDays: environmentType == 'prod' ? 30 : 7
+  }
+}
+
+resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2023-05-01' = {
+  name: containerAppsEnvironmentName
+  location: location
+  tags: {
+    'azd-env-name': environmentName
+  }
+  properties: {
+    appLogsConfiguration: {
+      destination: 'log-analytics'
+      logAnalyticsConfiguration: {
+        customerId: logAnalyticsWorkspace.properties.customerId
+        sharedKey: logAnalyticsWorkspace.listKeys().primarySharedKey
+      }
+    }
+  }
+}
+
+resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
+  name: containerAppName
+  location: location
+  tags: {
+    'azd-env-name': environmentName
+    'azd-service-name': 'api'
+  }
+  identity: {
+    type: 'SystemAssigned'
   }
   properties: {
     managedEnvironmentId: containerAppsEnvironment.id
     configuration: {
+      activeRevisionsMode: 'Single'
       ingress: {
         external: true
-        targetPort: bootstrapPort
-        transport: 'http'
+        targetPort: 8080
+        transport: 'auto'
+        allowInsecure: false
       }
       registries: [
         {
           server: containerRegistry.properties.loginServer
-          identity: acrPullIdentity.id
+          identity: 'system'
         }
       ]
       secrets: [
         {
-          name: 'postgres-password'
-          value: postgresPassword
+          name: 'connection-string'
+          value: postgresConnectionString
+        }
+        {
+          name: 'jwt-secret-key'
+          value: jwtSecretKey
         }
       ]
     }
     template: {
       containers: [
         {
-          name: serviceName
-          image: bootstrapImage
+          name: 'api'
+          image: 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
           env: [
-            { name: 'POSTGRES_HOST', value: postgresHost }
-            { name: 'POSTGRES_DB', value: postgresDb }
-            { name: 'POSTGRES_USER', value: postgresUser }
-            { name: 'POSTGRES_PASSWORD', secretRef: 'postgres-password' }
+            {
+              name: 'ASPNETCORE_ENVIRONMENT'
+              value: environmentType == 'prod' ? 'Production' : 'Development'
+            }
+            {
+              name: 'ASPNETCORE_URLS'
+              value: 'http://+:8080'
+            }
+            {
+              name: 'ConnectionStrings__DefaultConnection'
+              secretRef: 'connection-string'
+            }
+            {
+              name: 'Jwt__SecretKey'
+              secretRef: 'jwt-secret-key'
+            }
+            {
+              name: 'Cors__AllowedOrigins__0'
+              value: corsAllowedOrigin
+            }
           ]
           resources: {
-            cpu: json('0.25')
-            memory: '0.5Gi'
+            cpu: json(environmentType == 'prod' ? '0.5' : '0.25')
+            memory: environmentType == 'prod' ? '1Gi' : '0.5Gi'
           }
         }
       ]
       scale: {
-        minReplicas: 1
-        maxReplicas: environmentType == 'dev' ? 1 : 3
+        minReplicas: environmentType == 'prod' ? 1 : 0
+        maxReplicas: environmentType == 'prod' ? 3 : 1
       }
     }
   }
-  dependsOn: [acrPullRole, containerAppsEnvironment, containerRegistry]
+}
+
+resource containerAppAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(containerRegistry.id, containerApp.id, 'AcrPull')
+  scope: containerRegistry
+  properties: {
+    principalId: containerApp.identity.principalId
+    roleDefinitionId: acrPullRoleDefinitionId
+    principalType: 'ServicePrincipal'
+  }
 }
 
 output containerRegistryLoginServer string = containerRegistry.properties.loginServer
-output containerRegistryName string = containerRegistry.name
-output containerAppUrl string = 'https://${containerApp.properties.configuration.ingress.fqdn}'
+output apiUri string = 'https://${containerApp.properties.configuration.ingress.fqdn}'
