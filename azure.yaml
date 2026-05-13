@@ -11,14 +11,10 @@ infra:
 pipeline:
   provider: github
 
+# A API nao usa `azd deploy` porque trocamos o ACR pelo GHCR (gratis).
+# O workflow do sm-tech-back faz `docker build && docker push ghcr.io/...`
+# e depois `az containerapp update --image ...`. So o front continua via azd.
 services:
-  api:
-    project: ../sm-tech-back
-    language: docker
-    host: containerapp
-    docker:
-      path: Dockerfile
-      context: .
   web:
     project: ../sm-tech-front
     language: js

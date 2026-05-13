@@ -11,20 +11,17 @@ param environmentName string
 @description('Tipo do ambiente para diferenciar escala.')
 param environmentType string = 'dev'
 
-@description('Object ID do principal usado pelo pipeline. Recebe AcrPush quando informado.')
-param principalId string = ''
-
 @description('Nome do Container App da API.')
 param containerAppName string
 
 @description('Nome do Container Apps Environment.')
 param containerAppsEnvironmentName string
 
-@description('Nome do Azure Container Registry.')
-param containerRegistryName string
-
 @description('Nome do Log Analytics Workspace.')
 param logAnalyticsWorkspaceName string
+
+@description('Imagem inicial do Container App. O pipeline troca para ghcr.io/sm-tech-health/sm-tech-back:<sha> apos o primeiro provision.')
+param initialContainerImage string = 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
 
 @secure()
 @description('Connection string PostgreSQL usada pela API.')
@@ -36,33 +33,6 @@ param jwtSecretKey string
 
 @description('Origem permitida para CORS.')
 param corsAllowedOrigin string
-
-var acrPushRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8311e382-0749-4cb8-b61a-304f252e45ec')
-var acrPullRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
-
-resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
-  name: containerRegistryName
-  location: location
-  tags: {
-    'azd-env-name': environmentName
-  }
-  sku: {
-    name: 'Basic'
-  }
-  properties: {
-    adminUserEnabled: false
-  }
-}
-
-resource pipelineAcrPush 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(principalId)) {
-  name: guid(containerRegistry.id, principalId, 'AcrPush')
-  scope: containerRegistry
-  properties: {
-    principalId: principalId
-    roleDefinitionId: acrPushRoleDefinitionId
-    principalType: 'ServicePrincipal'
-  }
-}
 
 resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
   name: logAnalyticsWorkspaceName
@@ -95,6 +65,9 @@ resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2023-05-01'
   }
 }
 
+// Container App pega imagem publica do GHCR (ghcr.io/sm-tech-health/sm-tech-back).
+// Por isso nao precisa de bloco `registries` com auth nem de role AcrPull.
+// Importante: marque o pacote GHCR como Public apos o primeiro push.
 resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
   name: containerAppName
   location: location
@@ -115,12 +88,6 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
         transport: 'auto'
         allowInsecure: false
       }
-      registries: [
-        {
-          server: containerRegistry.properties.loginServer
-          identity: 'system'
-        }
-      ]
       secrets: [
         {
           name: 'connection-string'
@@ -136,7 +103,7 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
       containers: [
         {
           name: 'api'
-          image: 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
+          image: initialContainerImage
           env: [
             {
               name: 'ASPNETCORE_ENVIRONMENT'
@@ -173,15 +140,5 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
   }
 }
 
-resource containerAppAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(containerRegistry.id, containerApp.id, 'AcrPull')
-  scope: containerRegistry
-  properties: {
-    principalId: containerApp.identity.principalId
-    roleDefinitionId: acrPullRoleDefinitionId
-    principalType: 'ServicePrincipal'
-  }
-}
-
-output containerRegistryLoginServer string = containerRegistry.properties.loginServer
+output containerAppName string = containerApp.name
 output apiUri string = 'https://${containerApp.properties.configuration.ingress.fqdn}'

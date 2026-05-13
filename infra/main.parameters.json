@@ -8,11 +8,8 @@
     "location": {
       "value": "${AZURE_LOCATION}"
     },
-    "principalId": {
-      "value": "${AZURE_PRINCIPAL_ID}"
-    },
     "environmentType": {
-      "value": "${ENVIRONMENT_TYPE}"
+      "value": "${ENVIRONMENT_TYPE=dev}"
     },
     "postgresAdminPassword": {
       "value": "${POSTGRES_ADMIN_PASSWORD}"
@@ -21,16 +18,7 @@
       "value": "${JWT_SECRET_KEY}"
     },
     "corsAllowedOrigin": {
-      "value": "${CORS_ALLOWED_ORIGIN}"
-    }
-  }
-}
-{
-  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
-  "contentVersion": "1.0.0.0",
-  "parameters": {
-    "environmentType": {
-      "value": "dev"
+      "value": "${CORS_ALLOWED_ORIGIN=}"
     }
   }
 }

@@ -9,9 +9,6 @@ param location string = resourceGroup().location
 @description('Regiao do Azure Static Web App. SWA nao esta disponivel em todas as regioes.')
 param staticWebAppLocation string = 'eastus2'
 
-@description('Object ID do principal usado pelo pipeline. Recebe AcrPush para publicar imagens.')
-param principalId string = ''
-
 @allowed([
   'dev'
   'prod'
@@ -31,6 +28,9 @@ param jwtSecretKey string
 
 @description('Origem CORS principal. Quando vazio, usa a URL default do Static Web App.')
 param corsAllowedOrigin string = ''
+
+@description('Imagem inicial do Container App. O pipeline troca para ghcr.io apos o primeiro provision.')
+param initialContainerImage string = 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
 
 var resourceToken = uniqueString(subscription().id, resourceGroup().id, environmentName)
 var namePrefix = toLower('smtech-${environmentName}')
@@ -69,18 +69,17 @@ module api 'modules/container-apps.bicep' = {
     location: location
     environmentName: environmentName
     environmentType: environmentType
-    principalId: principalId
     containerAppName: take('${namePrefix}-api-${resourceToken}', 32)
     containerAppsEnvironmentName: take('${namePrefix}-cae-${resourceToken}', 60)
-    containerRegistryName: take(replace('${namePrefix}acr${resourceToken}', '-', ''), 50)
     logAnalyticsWorkspaceName: take('${namePrefix}-law-${resourceToken}', 63)
+    initialContainerImage: initialContainerImage
     postgresConnectionString: postgresConnectionString
     jwtSecretKey: jwtSecretKey
     corsAllowedOrigin: effectiveCorsAllowedOrigin
   }
 }
 
-output AZURE_CONTAINER_REGISTRY_ENDPOINT string = api.outputs.containerRegistryLoginServer
+output API_CONTAINER_APP_NAME string = api.outputs.containerAppName
 output API_URI string = api.outputs.apiUri
 output WEB_URI string = 'https://${web.outputs.defaultHostname}'
 
