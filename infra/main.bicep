@@ -71,7 +71,6 @@ module api 'modules/container-apps.bicep' = {
     environmentType: environmentType
     containerAppName: take('${namePrefix}-api-${resourceToken}', 32)
     containerAppsEnvironmentName: take('${namePrefix}-cae-${resourceToken}', 60)
-    logAnalyticsWorkspaceName: take('${namePrefix}-law-${resourceToken}', 63)
     initialContainerImage: initialContainerImage
     postgresConnectionString: postgresConnectionString
     jwtSecretKey: jwtSecretKey

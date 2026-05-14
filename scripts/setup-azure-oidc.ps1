@@ -171,8 +171,11 @@ Write-Host "  POSTGRES_ADMIN_PASSWORD = (gere uma senha forte com min. 12 chars)
 Write-Host "  JWT_SECRET_KEY          = (gere uma chave forte com min. 32 chars)"
 Write-Host ""
 Write-Host "Sugestoes prontas (copie se nao tiver suas proprias):"
-$pgPwd  = -join ((33..126) | Get-Random -Count 24 | ForEach-Object { [char]$_ })
-$jwtKey = -join ((33..126) | Get-Random -Count 48 | ForEach-Object { [char]$_ })
+# So alfanumerico para evitar problemas com escape JSON, expansao de shell
+# e caracteres reservados pelo PostgreSQL/connection-string.
+$alphabet = (([char[]](48..57)) + ([char[]](65..90)) + ([char[]](97..122)))
+$pgPwd  = -join (1..24 | ForEach-Object { $alphabet | Get-Random })
+$jwtKey = -join (1..48 | ForEach-Object { $alphabet | Get-Random })
 Write-Host "  POSTGRES_ADMIN_PASSWORD = $pgPwd"
 Write-Host "  JWT_SECRET_KEY          = $jwtKey"
 Write-Host ""

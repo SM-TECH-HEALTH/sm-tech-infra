@@ -17,9 +17,6 @@ param containerAppName string
 @description('Nome do Container Apps Environment.')
 param containerAppsEnvironmentName string
 
-@description('Nome do Log Analytics Workspace.')
-param logAnalyticsWorkspaceName string
-
 @description('Imagem inicial do Container App. O pipeline troca para ghcr.io/sm-tech-health/sm-tech-back:<sha> apos o primeiro provision.')
 param initialContainerImage string = 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
 
@@ -34,35 +31,16 @@ param jwtSecretKey string
 @description('Origem permitida para CORS.')
 param corsAllowedOrigin string
 
-resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
-  name: logAnalyticsWorkspaceName
-  location: location
-  tags: {
-    'azd-env-name': environmentName
-  }
-  properties: {
-    sku: {
-      name: 'PerGB2018'
-    }
-    retentionInDays: environmentType == 'prod' ? 30 : 7
-  }
-}
-
+// Container Apps Environment sem Log Analytics. Para inspecionar logs no
+// ambiente lab use `az containerapp logs show --follow` enquanto a app esta
+// rodando. Para producao, reintroduzir o workspace.
 resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2023-05-01' = {
   name: containerAppsEnvironmentName
   location: location
   tags: {
     'azd-env-name': environmentName
   }
-  properties: {
-    appLogsConfiguration: {
-      destination: 'log-analytics'
-      logAnalyticsConfiguration: {
-        customerId: logAnalyticsWorkspace.properties.customerId
-        sharedKey: logAnalyticsWorkspace.listKeys().primarySharedKey
-      }
-    }
-  }
+  properties: {}
 }
 
 // Container App pega imagem publica do GHCR (ghcr.io/sm-tech-health/sm-tech-back).
