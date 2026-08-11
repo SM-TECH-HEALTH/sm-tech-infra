@@ -24,9 +24,15 @@ $AppName        = "sm-tech-github-actions"
 $GithubOrg      = "SM-TECH-HEALTH"
 $Repos          = @("sm-tech-back", "sm-tech-front")
 $Environments   = @("development", "production")
-# Site institucional: so production (SWA Free em prod).
+# Site institucional: so production.
+# Este repo usa subject com owner_id/repo_id (claim personalizado no GitHub Org).
 $SiteRepo       = "sm-tech-site-institucional"
 $SiteEnv        = "production"
+$SiteOrgId      = "280150824"
+$SiteRepoId     = "1331169593"
+$SiteSubject    = "repo:${GithubOrg}@${SiteOrgId}/${SiteRepo}@${SiteRepoId}:environment:${SiteEnv}"
+# Fallback: formato classico sem IDs (caso a org desative claims customizados).
+$SiteSubjectClassic = "repo:${GithubOrg}/${SiteRepo}:environment:${SiteEnv}"
 # sm-tech-infra precisa de credencial extra porque o workflow agendado
 # de start/stop do Postgres roda nesse repo.
 $InfraRepo      = "sm-tech-infra"
@@ -149,9 +155,11 @@ foreach ($repo in $Repos) {
     }
 }
 
-# site institucional: so production
+# site institucional: so production (subject com IDs + fallback classico)
 New-FederatedCredential -CredName "$SiteRepo-$SiteEnv" `
-    -Subject "repo:$GithubOrg/${SiteRepo}:environment:$SiteEnv"
+    -Subject $SiteSubject
+New-FederatedCredential -CredName "$SiteRepo-$SiteEnv-classic" `
+    -Subject $SiteSubjectClassic
 
 # sm-tech-infra: 1 env para o workflow agendado de cost-saving
 New-FederatedCredential -CredName "$InfraRepo-$InfraEnv" `

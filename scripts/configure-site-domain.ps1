@@ -37,18 +37,20 @@ Write-Host "  Subscription: $($account.name) ($($account.id))" -ForegroundColor 
 
 Write-Host ""
 Write-Host "==> Localizando Static Web App (env=$EnvironmentName, service=site)..." -ForegroundColor Cyan
-$swaName = az staticwebapp list `
-    --query "[?tags.\"azd-env-name\"=='$EnvironmentName' && tags.\"azd-service-name\"=='site'].name | [0]" `
-    -o tsv --only-show-errors
+$swaList = az staticwebapp list --output json --only-show-errors | ConvertFrom-Json
+$swa = @($swaList) | Where-Object {
+    $_.tags.'azd-env-name' -eq $EnvironmentName -and $_.tags.'azd-service-name' -eq 'site'
+} | Select-Object -First 1
 
-if ([string]::IsNullOrWhiteSpace($swaName)) {
+if (-not $swa) {
     Write-Host "SWA do site institucional nao encontrado." -ForegroundColor Red
     Write-Host "Provision o ambiente prod (azd provision) apos o Bicep com o modulo site." -ForegroundColor Yellow
     exit 1
 }
 
-$defaultHostname = az staticwebapp show --name $swaName --query "defaultHostname" -o tsv --only-show-errors
-$resourceGroup = az staticwebapp show --name $swaName --query "resourceGroup" -o tsv --only-show-errors
+$swaName = $swa.name
+$defaultHostname = $swa.defaultHostname
+$resourceGroup = $swa.resourceGroup
 Write-Host "  Nome:     $swaName" -ForegroundColor Green
 Write-Host "  RG:       $resourceGroup" -ForegroundColor Green
 Write-Host "  Default:  https://$defaultHostname" -ForegroundColor Green
@@ -90,15 +92,19 @@ if ($Status) {
 }
 
 function Register-Hostname {
-    param([string]$Hostname)
+    param(
+        [string]$Hostname,
+        [ValidateSet('cname-delegation', 'dns-txt-token')]
+        [string]$ValidationMethod = 'dns-txt-token'
+    )
 
     Write-Host ""
-    Write-Host "==> Registrando hostname: $Hostname" -ForegroundColor Cyan
-    $existing = Get-Hostnames | Where-Object {
+    Write-Host "==> Registrando hostname: $Hostname (validation=$ValidationMethod)" -ForegroundColor Cyan
+    $existing = @(Get-Hostnames) | Where-Object {
         $_.domainName -eq $Hostname -or $_.name -eq $Hostname
     }
-    if ($existing) {
-        Write-Host "  Ja registrado (status: $($existing.status))" -ForegroundColor DarkGray
+    if ($existing -and $existing.Count -gt 0) {
+        Write-Host "  Ja registrado (status: $($existing[0].status))" -ForegroundColor DarkGray
         return
     }
 
@@ -106,39 +112,46 @@ function Register-Hostname {
         --name $swaName `
         --resource-group $resourceGroup `
         --hostname $Hostname `
+        --validation-method $ValidationMethod `
+        --no-wait `
         --only-show-errors | Out-Null
 
     if ($LASTEXITCODE -ne 0) {
         Write-Host "  Falha ao registrar $Hostname. Confira DNS/permissoes e tente de novo." -ForegroundColor Red
         exit 1
     }
-    Write-Host "  Registrado." -ForegroundColor Green
+    Write-Host "  Registrado (validacao pendente ate o DNS propagar)." -ForegroundColor Green
 }
 
-Register-Hostname -Hostname $ApexDomain
-Register-Hostname -Hostname $WwwHost
+# Apex exige TXT; www tambem usa TXT aqui para nao depender do CNAME existir antes.
+Register-Hostname -Hostname $ApexDomain -ValidationMethod 'dns-txt-token'
+Register-Hostname -Hostname $WwwHost -ValidationMethod 'dns-txt-token'
 
+# Aguarda tokens de validacao aparecerem
+Write-Host ""
+Write-Host "==> Aguardando tokens de validacao DNS..." -ForegroundColor Cyan
+Start-Sleep -Seconds 8
 Show-HostnameStatus
 
 Write-Host ""
 Write-Host "=====================================================================" -ForegroundColor Yellow
-Write-Host " Registros DNS a criar no provedor de $ApexDomain                     " -ForegroundColor Yellow
+Write-Host " Registros DNS a criar no provedor de $ApexDomain" -ForegroundColor Yellow
 Write-Host "=====================================================================" -ForegroundColor Yellow
 Write-Host ""
-Write-Host "1) WWW (subdominio) — CNAME"
+Write-Host "1) WWW (subdominio) - CNAME"
 Write-Host "   Host / Name : www"
 Write-Host "   Type        : CNAME"
 Write-Host "   Value / Target : $defaultHostname"
 Write-Host "   TTL         : 300 (ou default)"
 Write-Host ""
-Write-Host "2) APEX (raiz) — validacao TXT + trafego"
+Write-Host "2) APEX (raiz) - validacao TXT + trafego"
 Write-Host "   a) TXT de validacao (obrigatorio no apex):"
 Write-Host "      Host / Name : _dnsauth   (ou _dnsauth.$ApexDomain, conforme o provedor)"
 Write-Host "      Type        : TXT"
 Write-Host "      Value       : use o validationToken impresso acima para $ApexDomain"
 Write-Host "      (Se o token ainda nao apareceu, rode: .\scripts\configure-site-domain.ps1 -Status)"
 Write-Host ""
-Write-Host "   b) Trafego para o SWA (escolha o que o provedor suportar):"
+Write-Host "   b) Trafego para o SWA (escolha o que o provedor suporte):"
 Write-Host "      - ALIAS / ANAME / CNAME flattening apontando para: $defaultHostname"
 Write-Host "      - Ou registros A com os IPs publicados pela Microsoft para SWA apex"
 Write-Host "        (docs: Set up a custom domain with Azure DNS / Free custom domains)"
