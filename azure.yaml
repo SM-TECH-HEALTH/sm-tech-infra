@@ -13,10 +13,16 @@ pipeline:
 
 # A API nao usa `azd deploy` porque trocamos o ACR pelo GHCR (gratis).
 # O workflow do sm-tech-back faz `docker build && docker push ghcr.io/...`
-# e depois `az containerapp update --image ...`. So o front continua via azd.
+# e depois `az containerapp update --image ...`.
+# Front e site institucional usam SWA CLI no GitHub Actions (workaround azd deploy).
 services:
   web:
     project: ../sm-tech-front
     language: js
     host: staticwebapp
     dist: dist/sm-tech-front/browser
+  site:
+    project: ../site-institucional
+    language: js
+    host: staticwebapp
+    dist: dist

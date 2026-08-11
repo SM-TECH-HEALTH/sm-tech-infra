@@ -56,7 +56,20 @@ module web 'modules/static-web-app.bicep' = {
     location: staticWebAppLocation
     environmentName: environmentName
     staticWebAppName: take('${namePrefix}-web-${resourceToken}', 60)
+    serviceName: 'web'
     skuName: environmentType == 'prod' ? 'Standard' : 'Free'
+  }
+}
+
+// Site institucional: so em prod, sempre Free (dominio custom suportado no Free).
+module site 'modules/static-web-app.bicep' = if (environmentType == 'prod') {
+  name: 'static-web-app-site'
+  params: {
+    location: staticWebAppLocation
+    environmentName: environmentName
+    staticWebAppName: take('${namePrefix}-site-${resourceToken}', 60)
+    serviceName: 'site'
+    skuName: 'Free'
   }
 }
 
@@ -81,6 +94,7 @@ module api 'modules/container-apps.bicep' = {
 output API_CONTAINER_APP_NAME string = api.outputs.containerAppName
 output API_URI string = api.outputs.apiUri
 output WEB_URI string = 'https://${web.outputs.defaultHostname}'
+output SITE_URI string = environmentType == 'prod' ? 'https://${site!.outputs.defaultHostname}' : ''
 
 output POSTGRES_HOST string = postgres.outputs.host
 output POSTGRES_DB string = postgres.outputs.databaseName

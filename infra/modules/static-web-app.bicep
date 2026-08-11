@@ -7,6 +7,9 @@ param environmentName string
 @description('Nome do Azure Static Web App.')
 param staticWebAppName string
 
+@description('Valor da tag azd-service-name (ex.: web, site).')
+param serviceName string = 'web'
+
 @allowed([
   'Free'
   'Standard'
@@ -19,7 +22,7 @@ resource staticWebApp 'Microsoft.Web/staticSites@2023-12-01' = {
   location: location
   tags: {
     'azd-env-name': environmentName
-    'azd-service-name': 'web'
+    'azd-service-name': serviceName
   }
   sku: {
     name: skuName

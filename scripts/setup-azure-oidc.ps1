@@ -9,11 +9,11 @@
 # O que esse script faz:
 #   1. Cria App Registration + Service Principal
 #   2. Concede Contributor + User Access Administrator no escopo da subscription
-#   3. Cria 4 federated credentials:
-#        - sm-tech-back/environment:development
-#        - sm-tech-back/environment:production
-#        - sm-tech-front/environment:development
-#        - sm-tech-front/environment:production
+#   3. Cria federated credentials:
+#        - sm-tech-back/environment:development e production
+#        - sm-tech-front/environment:development e production
+#        - sm-tech-site-institucional/environment:production (site institucional, so prod)
+#        - sm-tech-infra/environment:development (Postgres schedule)
 #   4. Imprime no final os valores que voce vai usar no GitHub
 # =====================================================================
 
@@ -24,6 +24,9 @@ $AppName        = "sm-tech-github-actions"
 $GithubOrg      = "SM-TECH-HEALTH"
 $Repos          = @("sm-tech-back", "sm-tech-front")
 $Environments   = @("development", "production")
+# Site institucional: so production (SWA Free em prod).
+$SiteRepo       = "sm-tech-site-institucional"
+$SiteEnv        = "production"
 # sm-tech-infra precisa de credencial extra porque o workflow agendado
 # de start/stop do Postgres roda nesse repo.
 $InfraRepo      = "sm-tech-infra"
@@ -146,6 +149,10 @@ foreach ($repo in $Repos) {
     }
 }
 
+# site institucional: so production
+New-FederatedCredential -CredName "$SiteRepo-$SiteEnv" `
+    -Subject "repo:$GithubOrg/${SiteRepo}:environment:$SiteEnv"
+
 # sm-tech-infra: 1 env para o workflow agendado de cost-saving
 New-FederatedCredential -CredName "$InfraRepo-$InfraEnv" `
     -Subject "repo:$GithubOrg/${InfraRepo}:environment:$InfraEnv"
@@ -156,19 +163,23 @@ Write-Host "====================================================================
 Write-Host " GUARDE ESSES VALORES - voce vai colar no GitHub                     " -ForegroundColor Yellow
 Write-Host "=====================================================================" -ForegroundColor Yellow
 Write-Host ""
-Write-Host "Variables - cole nos 3 repos:"
-Write-Host "  sm-tech-back  -> Settings > Environments > development e production > Variables"
-Write-Host "  sm-tech-front -> Settings > Environments > development e production > Variables"
-Write-Host "  sm-tech-infra -> Settings > Environments > development > Variables"
+Write-Host "Variables - cole nos repos:"
+Write-Host "  sm-tech-back               -> Environments > development e production > Variables"
+Write-Host "  sm-tech-front              -> Environments > development e production > Variables"
+Write-Host "  sm-tech-site-institucional -> Environments > production > Variables"
+Write-Host "  sm-tech-infra              -> Environments > development > Variables"
 Write-Host "  AZURE_CLIENT_ID         = $AppId"
 Write-Host "  AZURE_TENANT_ID         = $TenantId"
 Write-Host "  AZURE_SUBSCRIPTION_ID   = $SubscriptionId"
 Write-Host "  AZURE_LOCATION          = brazilsouth      (so back/front)"
 Write-Host "  CORS_ALLOWED_ORIGIN     = (deixe vazio no primeiro deploy. so back/front)"
 Write-Host ""
-Write-Host "Secrets (em CADA repo, no escopo do environment):"
+Write-Host "Secrets (em CADA repo back/front, no escopo do environment):"
 Write-Host "  POSTGRES_ADMIN_PASSWORD = (gere uma senha forte com min. 12 chars)"
 Write-Host "  JWT_SECRET_KEY          = (gere uma chave forte com min. 32 chars)"
+Write-Host ""
+Write-Host "Secret opcional no site institucional (production):"
+Write-Host "  VITE_WEB3FORMS_ACCESS_KEY = (chave publica Web3Forms, se o formulario usar API)"
 Write-Host ""
 Write-Host "Sugestoes prontas (copie se nao tiver suas proprias):"
 # So alfanumerico para evitar problemas com escape JSON, expansao de shell
