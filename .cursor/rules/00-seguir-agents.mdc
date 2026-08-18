@@ -1,0 +1,8 @@
+---
+description: Seguir AGENTS.md da infra e o Context OS sm-tech-ai
+alwaysApply: true
+---
+
+# sm-tech-infra
+
+Leia `AGENTS.md` neste repo e `../sm-tech-ai/AGENTS.md`. Consulte `docs/passo-a-passo-setup.md` antes de mudar provisionamento Azure. Não commite secrets. Git: `../sm-tech-ai/specs/git.md`.

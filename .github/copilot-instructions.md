@@ -1,0 +1,1 @@
+Siga AGENTS.md neste repositório e ../sm-tech-ai/AGENTS.md. Consulte docs/passo-a-passo-setup.md antes de alterar Bicep, workflows ou scripts Azure. Não commite secrets. PR de feature só para develop; produção só release → main.
