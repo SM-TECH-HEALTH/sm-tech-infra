@@ -11,10 +11,10 @@ infra:
 pipeline:
   provider: github
 
-# A API nao usa `azd deploy` porque trocamos o ACR pelo GHCR (gratis).
-# O workflow do sm-tech-back faz `docker build && docker push ghcr.io/...`
-# e depois `az containerapp update --image ...`.
+# A API e os agentes nao usam `azd deploy` porque o registro e o GHCR (gratis).
+# Workflows: sm-tech-back (tag azd-service-name=api) e sm-tech-agents (tag agents).
 # Front e site institucional usam SWA CLI no GitHub Actions (workaround azd deploy).
+# Azure OpenAI + Container App agents nascem quando DEPLOY_AI_AGENTS=true (workflow agents).
 services:
   web:
     project: ../sm-tech-front

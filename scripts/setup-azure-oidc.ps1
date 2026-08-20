@@ -12,6 +12,7 @@
 #   3. Cria federated credentials:
 #        - sm-tech-back/environment:development e production
 #        - sm-tech-front/environment:development e production
+#        - sm-tech-agents/environment:development e production
 #        - sm-tech-site-institucional/environment:production (site institucional, so prod)
 #        - sm-tech-infra/environment:development (Postgres schedule)
 #   4. Imprime no final os valores que voce vai usar no GitHub
@@ -22,7 +23,7 @@ $ErrorActionPreference = "Stop"
 # ---- Parametros (ajuste se necessario) ----
 $AppName        = "sm-tech-github-actions"
 $GithubOrg      = "SM-TECH-HEALTH"
-$Repos          = @("sm-tech-back", "sm-tech-front")
+$Repos          = @("sm-tech-back", "sm-tech-front", "sm-tech-agents")
 $Environments   = @("development", "production")
 # Site institucional: so production.
 # Este repo usa subject com owner_id/repo_id (claim personalizado no GitHub Org).
@@ -174,17 +175,20 @@ Write-Host ""
 Write-Host "Variables - cole nos repos:"
 Write-Host "  sm-tech-back               -> Environments > development e production > Variables"
 Write-Host "  sm-tech-front              -> Environments > development e production > Variables"
+Write-Host "  sm-tech-agents             -> Environments > development e production > Variables"
 Write-Host "  sm-tech-site-institucional -> Environments > production > Variables"
 Write-Host "  sm-tech-infra              -> Environments > development > Variables"
 Write-Host "  AZURE_CLIENT_ID         = $AppId"
 Write-Host "  AZURE_TENANT_ID         = $TenantId"
 Write-Host "  AZURE_SUBSCRIPTION_ID   = $SubscriptionId"
-Write-Host "  AZURE_LOCATION          = brazilsouth      (so back/front)"
-Write-Host "  CORS_ALLOWED_ORIGIN     = (deixe vazio no primeiro deploy. so back/front)"
+Write-Host "  AZURE_LOCATION          = brazilsouth      (back/front/agents)"
+Write-Host "  CORS_ALLOWED_ORIGIN     = (deixe vazio no primeiro deploy. back/front/agents)"
+Write-Host "  OPENAI_LOCATION         = eastus2           (so agents; gpt-4o quase nunca esta em brazilsouth)"
 Write-Host ""
-Write-Host "Secrets (em CADA repo back/front, no escopo do environment):"
+Write-Host "Secrets (em CADA repo back/front/agents, no escopo do environment):"
 Write-Host "  POSTGRES_ADMIN_PASSWORD = (gere uma senha forte com min. 12 chars)"
 Write-Host "  JWT_SECRET_KEY          = (gere uma chave forte com min. 32 chars)"
+Write-Host "  Use o mesmo par nos tres repos. A chave OpenAI NAO vai no GitHub — o Bicep injeta via listKeys."
 Write-Host ""
 Write-Host "Secret opcional no site institucional (production):"
 Write-Host "  VITE_WEB3FORMS_ACCESS_KEY = (chave publica Web3Forms, se o formulario usar API)"

@@ -120,3 +120,4 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
 
 output containerAppName string = containerApp.name
 output apiUri string = 'https://${containerApp.properties.configuration.ingress.fqdn}'
+output containerAppsEnvironmentId string = containerAppsEnvironment.id

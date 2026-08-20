@@ -8,7 +8,7 @@ Antes de editar, leia:
 - `docs/passo-a-passo-setup.md`
 - `docs/github-azure-setup.md`
 
-Código: `infra/main.bicep`, `infra/modules/`, workflows em `.github/workflows/`.
+Código: `infra/main.bicep`, `infra/modules/` (inclui `openai.bicep` e `agents-app.bicep`, ligados por `DEPLOY_AI_AGENTS`), workflows em `.github/workflows/`.
 
 Não aplique padrões de tela SMT nem Clean Architecture de API aqui. Mudanças de arquitetura de nuvem que afetem o produto → ADR em `../sm-tech-ai/specs/architecture/adr/` e skill `atualizar-referencias`.
 
