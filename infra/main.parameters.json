@@ -19,6 +19,21 @@
     },
     "corsAllowedOrigin": {
       "value": "${CORS_ALLOWED_ORIGIN=}"
+    },
+    "deployAiAgents": {
+      "value": "${DEPLOY_AI_AGENTS=false}"
+    },
+    "openaiLocation": {
+      "value": "${OPENAI_LOCATION=eastus2}"
+    },
+    "openaiDeploymentName": {
+      "value": "${OPENAI_DEPLOYMENT_NAME=gpt-4o}"
+    },
+    "openaiModelVersion": {
+      "value": "${OPENAI_MODEL_VERSION=2024-08-06}"
+    },
+    "openaiSkuName": {
+      "value": "${OPENAI_SKU_NAME=GlobalStandard}"
     }
   }
 }

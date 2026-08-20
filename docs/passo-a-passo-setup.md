@@ -15,7 +15,7 @@ Pre-requisitos:
 
 - Conta Azure com permissao de Owner (ou Contributor + User Access Admin) na subscription.
 - Azure CLI instalado e logado (`az login`).
-- Acesso de admin nos repos `SM-TECH-HEALTH/sm-tech-back`, `sm-tech-front`, `sm-tech-infra` e `sm-tech-site-institucional`.
+- Acesso de admin nos repos `SM-TECH-HEALTH/sm-tech-back`, `sm-tech-front`, `sm-tech-agents`, `sm-tech-infra` e `sm-tech-site-institucional`.
 
 ---
 
@@ -47,6 +47,7 @@ O script vai:
 4. Criar federated credentials:
    - `sm-tech-back-development` e `sm-tech-back-production`
    - `sm-tech-front-development` e `sm-tech-front-production`
+   - `sm-tech-agents-development` e `sm-tech-agents-production`
    - `sm-tech-site-institucional-production` (site institucional, so prod)
    - `sm-tech-infra-development` (para o workflow agendado)
 5. Imprimir no final todos os valores que voce vai colar no GitHub, incluindo sugestoes de senha PostgreSQL e chave JWT.
@@ -57,7 +58,7 @@ Copie esses valores ou deixe a janela aberta - voce vai usar agora.
 
 ## 3. Configurar GitHub Environments
 
-Faca **EM CADA UM** dos repos (`sm-tech-back`, `sm-tech-front`, `sm-tech-infra` e `sm-tech-site-institucional`):
+Faca **EM CADA UM** dos repos (`sm-tech-back`, `sm-tech-front`, `sm-tech-agents`, `sm-tech-infra` e `sm-tech-site-institucional`):
 
 > No `sm-tech-infra` voce so precisa criar `development` (e nao `production`), porque o unico workflow desse repo e o `Postgres Schedule` rodando em dev.
 >
@@ -78,7 +79,7 @@ Em `Settings -> Environments`:
 
 Dentro de cada environment, secao **Environment variables**:
 
-**sm-tech-back e sm-tech-front** (development e production):
+**sm-tech-back, sm-tech-front e sm-tech-agents** (development e production):
 
 | Nome | Valor |
 | --- | --- |
@@ -87,6 +88,7 @@ Dentro de cada environment, secao **Environment variables**:
 | `AZURE_SUBSCRIPTION_ID` | `<SubscriptionId impresso pelo script>` |
 | `AZURE_LOCATION` | `brazilsouth` |
 | `CORS_ALLOWED_ORIGIN` | (deixe vazio no primeiro deploy) |
+| `OPENAI_LOCATION` | `eastus2` (só agents; opcional — o Bicep já usa esse default) |
 
 **sm-tech-site-institucional** (apenas production):
 
@@ -106,14 +108,16 @@ Dentro de cada environment, secao **Environment variables**:
 
 ### 3.3 Adicionar Secrets
 
-Secao **Environment secrets**, apenas em `sm-tech-back` e `sm-tech-front` (development e production):
+Secao **Environment secrets**, em `sm-tech-back`, `sm-tech-front` e `sm-tech-agents` (development e production):
 
 | Nome | Valor |
 | --- | --- |
 | `POSTGRES_ADMIN_PASSWORD` | min. 12 caracteres - use a sugestao do script ou a sua |
 | `JWT_SECRET_KEY` | min. 32 caracteres - use a sugestao do script ou a sua |
 
-> Use o **mesmo par** de senha/chave nos dois repos (back e front) dentro do mesmo environment - eles provisionam o mesmo recurso via `azd`.
+> Use o **mesmo par** de senha/chave nos três repos dentro do mesmo environment — eles provisionam o mesmo resource group via `azd`.
+>
+> **Não** cadastre a chave do Azure OpenAI no GitHub. O módulo Bicep `openai.bicep` injeta `listKeys` no Container App dos agentes.
 
 No `sm-tech-site-institucional` (production), secret opcional:
 
@@ -135,13 +139,22 @@ No `sm-tech-site-institucional` (production), secret opcional:
    - Role ate **Danger Zone** -> **Change package visibility** -> **Public**.
    - Por que: o Container App nao tem credenciais para puxar imagem privada do GHCR. Como o pacote so contem a imagem da API e nao tem segredos embutidos, deixar publico para um lab e aceitavel.
 
-3. Pegue o `WEB_URI` (URL `<...>.azurestaticapps.net`) impresso pelo `azd` e cole em `CORS_ALLOWED_ORIGIN` nos environments `development` de **back e front**.
+3. Pegue o `WEB_URI` (URL `<...>.azurestaticapps.net`) impresso pelo `azd` e cole em `CORS_ALLOWED_ORIGIN` nos environments `development` de **back, front e agents**.
 
 4. Em `sm-tech-front`, faca push em `develop`. O workflow `Deploy Web` publica o front no Static Web App.
 
 5. Verifique a aplicacao no `WEB_URI`.
 
 6. Em `sm-tech-infra`, va em **Actions -> Postgres Schedule -> Run workflow** uma vez (acao `stop`) para validar que a credencial OIDC esta ok. Depois o cron toma conta sozinho.
+
+7. **Agentes de IA** (opcional, gera custo de tokens gpt-4o):
+   1. Rode de novo `.\scripts\setup-azure-oidc.ps1` (idempotente) para criar as federated credentials `sm-tech-agents-*`, **ou** crie-as na App Registration se o script ja tiver rodado antes desta mudanca.
+   2. Crie o repo GitHub `SM-TECH-HEALTH/sm-tech-agents` (se ainda for so local), environments `development`/`production` com as mesmas variables/secrets do back.
+   3. **Antes do primeiro provision:** no portal Azure, peca quota de `gpt-4o` em `eastus2` (Foundry / Azure OpenAI). Sem quota o `azd provision` dos agentes falha; a API continua no ar porque `DEPLOY_AI_AGENTS` so e `true` nesse workflow.
+   4. Push em `develop` no `sm-tech-agents`. O workflow cria o recurso OpenAI + Container App `agents`, publica `ghcr.io/sm-tech-health/sm-tech-agents` e atualiza a imagem.
+   5. Torne o pacote GHCR **publico** (mesmo motivo da API).
+   6. Re-rode o deploy do front: o build injeta o FQDN dos agentes em `environment.azuredev.ts`.
+   7. No SPA (modulo Command Center): **Assistentes de IA → Assistente de Relatórios MV**.
 
 ---
 
@@ -185,6 +198,8 @@ O script registra `smtechsistemas.com.br` e `www.smtechsistemas.com.br` e imprim
 | --- | --- | --- |
 | PostgreSQL Flexible Server | B1ms, 32 GB, ~60h/semana ligado | ~R$ 20-25/mes (compute) + ~R$ 16/mes (storage) |
 | Container Apps (API) | min 0 replicas, scale-to-zero | R$ 0 idle, ~R$ 0-10/mes uso leve |
+| Container Apps (agentes, se ligado) | min 0 replicas, scale-to-zero | R$ 0 idle + tokens gpt-4o (credito startup) |
+| Azure OpenAI / Foundry (`DEPLOY_AI_AGENTS=true`) | gpt-4o GlobalStandard ~10k TPM | so tokens; cobrado na mesma subscription |
 | Container Apps Environment | Consumo, sem Log Analytics | R$ 0 fixo |
 | Azure Static Web App (front) | Free | R$ 0 |
 | Azure Static Web App (site institucional, so prod) | Free | R$ 0 |
@@ -211,7 +226,9 @@ Para parar/iniciar manualmente: **Actions -> Postgres Schedule -> Run workflow**
 - **Federated credential nao bate**: o subject e `repo:SM-TECH-HEALTH/<repo>:environment:<env>`. O environment precisa existir no GitHub **antes** do primeiro run.
 - **Container App fica em "Activation failed: Unable to pull image"**: o pacote GHCR esta privado. Refaca o passo 4.2 (Change visibility -> Public).
 - **Postgres falha com senha curta**: precisa de minimo 12 caracteres. Atualize o secret e re-rode.
-- **CORS bloqueando o front**: `CORS_ALLOWED_ORIGIN` precisa ser o dominio exato do Static Web App, com `https://` e sem `/` no final. Re-rode o deploy do back.
-- **`az containerapp update` nao encontra o app**: rode antes `azd provision` (o passo de "Provision infrastructure" do workflow ja faz isso). O `update` procura pela tag `azd-env-name`.
+- **CORS bloqueando o front**: `CORS_ALLOWED_ORIGIN` precisa ser o dominio exato do Static Web App, com `https://` e sem `/` no final. Re-rode o deploy do back (e o dos agentes, se ja existirem).
+- **`az containerapp update` nao encontra o app**: rode antes `azd provision`. O `update` da API filtra `azd-service-name==api`; o dos agentes filtra `agents`.
+- **Quota gpt-4o recusada no provision dos agentes**: peca o modelo em `eastus2` no portal (Azure OpenAI / Foundry). Nao rode o workflow de novo ate a quota existir. Se o `azd env` ficou com `DEPLOY_AI_AGENTS=true` e o deploy da API passou a falhar, `azd env set DEPLOY_AI_AGENTS false` no ambiente `dev` e re-rode a API; depois volte a `true` so no workflow agents.
+- **Chat 401 no SPA**: `JWT_SECRET_KEY` do environment agents tem de ser **identico** ao da API. CORS dos agentes tem de ser o `WEB_URI` (mesmo `CORS_ALLOWED_ORIGIN`).
 - **Deploy Site nao encontra o SWA**: o modulo `site` so existe em prod. Rode `azd provision` no ambiente prod (pipeline do front/back) apos o merge do Bicep; confira a tag `azd-service-name=site`.
 - **Dominio custom pendente**: confira TXT `_dnsauth` e ALIAS/CNAME com `.\scripts\configure-site-domain.ps1 -Status`.

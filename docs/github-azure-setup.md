@@ -38,7 +38,7 @@ az role assignment create \
 Crie uma credencial por repositório e environment usado no workflow.
 
 ```bash
-for repo in sm-tech-back sm-tech-front; do
+for repo in sm-tech-back sm-tech-front sm-tech-agents; do
   for env in development production; do
     az ad app federated-credential create \
       --id "$APP_ID" \
@@ -66,7 +66,7 @@ Preferivel: rode `.\scripts\setup-azure-oidc.ps1` (idempotente) em vez dos coman
 
 ## 4. Configurar GitHub Environments
 
-Em `sm-tech-back` e `sm-tech-front`, crie:
+Em `sm-tech-back`, `sm-tech-front` e `sm-tech-agents`, crie:
 
 - Environment `development`, sem aprovação obrigatória.
 - Environment `production`, com Required reviewers e branch restriction para `main`.
@@ -75,22 +75,25 @@ Em `sm-tech-site-institucional`, crie apenas:
 
 - Environment `production`, com Required reviewers e branch restriction para `main`.
 
-Configure as mesmas variables OIDC (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`) em todos. Back/front tambem usam `AZURE_LOCATION` e `CORS_ALLOWED_ORIGIN`.
+Configure as mesmas variables OIDC (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`) em todos. Back/front/agents tambem usam `AZURE_LOCATION` e `CORS_ALLOWED_ORIGIN`. No `sm-tech-agents`, opcional: `OPENAI_LOCATION` (`eastus2`).
 
 Variables:
 
 - `AZURE_CLIENT_ID`: valor de `$APP_ID`
 - `AZURE_TENANT_ID`: valor de `$TENANT_ID`
 - `AZURE_SUBSCRIPTION_ID`: valor de `$SUBSCRIPTION_ID`
-- `AZURE_LOCATION`: exemplo `brazilsouth` (back/front)
-- `CORS_ALLOWED_ORIGIN`: URL do front permitido pela API. Pode ficar vazio no primeiro provisionamento para usar a URL default do Static Web App.
+- `AZURE_LOCATION`: exemplo `brazilsouth` (back/front/agents)
+- `CORS_ALLOWED_ORIGIN`: URL do front permitido pela API e pelos agentes. Pode ficar vazio no primeiro provisionamento para usar a URL default do Static Web App.
+- `OPENAI_LOCATION` (só agents, opcional): `eastus2`. gpt-4o quase nunca está em `brazilsouth`.
 
 Observacao: o template usa `eastus2` como regiao default do Azure Static Web App, porque SWA nao esta disponivel em todas as regioes.
 
-Secrets (back/front):
+Secrets (back/front/agents — **o mesmo par** nos três, porque `azd provision` reaplica o resource group inteiro):
 
 - `POSTGRES_ADMIN_PASSWORD`: senha forte do PostgreSQL, minimo 12 caracteres.
-- `JWT_SECRET_KEY`: chave JWT forte, minimo 32 caracteres.
+- `JWT_SECRET_KEY`: chave JWT forte, minimo 32 caracteres. Tem de ser a mesma da API: o Container App dos agentes valida o Bearer do SPA.
+
+Não coloque `AZURE_OPENAI_API_KEY` no GitHub. O Bicep lê a chave com `listKeys` e injeta como secret do Container App.
 
 Secret opcional (site institucional):
 
