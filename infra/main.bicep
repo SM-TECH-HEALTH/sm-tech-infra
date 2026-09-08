@@ -146,7 +146,7 @@ module agents 'modules/agents-app.bicep' = if (enableAiAgents) {
     jwtSecretKey: jwtSecretKey
     corsAllowedOrigin: effectiveCorsAllowedOrigin
     azureOpenAiEndpoint: openai!.outputs.endpoint
-    azureOpenAiApiKey: openai!.outputs.apiKey
+    azureOpenAiAccountName: openai!.outputs.accountName
     azureOpenAiDeployment: openai!.outputs.deploymentName
   }
 }

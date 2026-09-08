@@ -34,11 +34,15 @@ param corsAllowedOrigin string
 @description('Endpoint Azure OpenAI (https://....openai.azure.com/).')
 param azureOpenAiEndpoint string
 
-@secure()
-param azureOpenAiApiKey string
+@description('Nome da conta Cognitive Services (OpenAI) ja provisionada, no mesmo resource group. A chave e lida daqui via listKeys() para nao precisar passar um output secure atraves de um modulo condicional (BCP426).')
+param azureOpenAiAccountName string
 
 @description('Nome do deployment no Foundry.')
 param azureOpenAiDeployment string = 'gpt-4o'
+
+resource openAiAccount 'Microsoft.CognitiveServices/accounts@2024-10-01' existing = {
+  name: azureOpenAiAccountName
+}
 
 resource agentsApp 'Microsoft.App/containerApps@2023-05-01' = {
   name: containerAppName
@@ -67,7 +71,7 @@ resource agentsApp 'Microsoft.App/containerApps@2023-05-01' = {
         }
         {
           name: 'azure-openai-key'
-          value: azureOpenAiApiKey
+          value: openAiAccount.listKeys().key1
         }
       ]
     }
