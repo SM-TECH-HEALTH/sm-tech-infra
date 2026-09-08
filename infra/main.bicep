@@ -36,6 +36,12 @@ param corsAllowedOrigin string = ''
 @description('Imagem inicial do Container App. O pipeline troca para ghcr.io apos o primeiro provision.')
 param initialContainerImage string = 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
 
+@description('Dominio customizado da API. Vazio = sem dominio custom.')
+param apiCustomDomainName string = ''
+
+@description('Resource ID do managed certificate do dominio customizado da API.')
+param apiCustomDomainCertificateId string = ''
+
 @description('Quando true, cria Azure OpenAI (gpt-4o) e o Container App dos agentes. O workflow sm-tech-agents liga isso; back/front nao definem o valor para nao resetar.')
 param deployAiAgents string = 'false'
 
@@ -116,6 +122,8 @@ module api 'modules/container-apps.bicep' = {
     postgresConnectionString: postgresConnectionString
     jwtSecretKey: jwtSecretKey
     corsAllowedOrigin: effectiveCorsAllowedOrigin
+    apiCustomDomainName: apiCustomDomainName
+    apiCustomDomainCertificateId: apiCustomDomainCertificateId
   }
 }
 

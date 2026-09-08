@@ -31,6 +31,12 @@ param jwtSecretKey string
 @description('Origem permitida para CORS.')
 param corsAllowedOrigin string
 
+@description('Dominio customizado da API (ex: api-demo.smtechsistemas.com.br). Vazio = nao expoe dominio custom, so o FQDN padrao do Container Apps.')
+param apiCustomDomainName string = ''
+
+@description('Resource ID do managed certificate (Microsoft.App/managedEnvironments/managedCertificates) do dominio customizado. Obrigatorio quando apiCustomDomainName nao esta vazio.')
+param apiCustomDomainCertificateId string = ''
+
 // Container Apps Environment sem Log Analytics. Para inspecionar logs no
 // ambiente lab use `az containerapp logs show --follow` enquanto a app esta
 // rodando. Para producao, reintroduzir o workspace.
@@ -65,6 +71,16 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
         targetPort: 8080
         transport: 'auto'
         allowInsecure: false
+        // Declarado aqui para nao ser resetado a cada `azd provision`: sem isso,
+        // o dominio custom some toda vez que o pipeline reprovisiona a infra
+        // (ARM substitui o ingress inteiro pelo que esta no template).
+        customDomains: !empty(apiCustomDomainName) ? [
+          {
+            name: apiCustomDomainName
+            bindingType: 'SniEnabled'
+            certificateId: apiCustomDomainCertificateId
+          }
+        ] : []
       }
       secrets: [
         {

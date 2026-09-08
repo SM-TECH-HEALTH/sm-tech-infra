@@ -37,6 +37,12 @@
     },
     "openaiSkuName": {
       "value": "${OPENAI_SKU_NAME=GlobalStandard}"
+    },
+    "apiCustomDomainName": {
+      "value": "${API_CUSTOM_DOMAIN_NAME=}"
+    },
+    "apiCustomDomainCertificateId": {
+      "value": "${API_CUSTOM_DOMAIN_CERTIFICATE_ID=}"
     }
   }
 }
