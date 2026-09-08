@@ -18,8 +18,12 @@ param environmentType string = 'dev'
 
 @secure()
 @minLength(12)
-@description('Senha do administrador do PostgreSQL Flexible Server.')
+@description('Senha do administrador do PostgreSQL Flexible Server. So usada quando environmentType == prod.')
 param postgresAdminPassword string
+
+@secure()
+@description('Connection string PostgreSQL pronta (ex: Supabase) usada quando environmentType == dev, no lugar de provisionar o Postgres do Azure.')
+param devDatabaseConnectionString string = ''
 
 @secure()
 @minLength(32)
@@ -57,7 +61,9 @@ var postgresDatabaseName = 'SmTechHospital'
 var enableAiAgents = toLower(deployAiAgents) == 'true'
 var openaiAccountName = take(replace(toLower('smt${environmentName}oai${resourceToken}'), '-', ''), 24)
 
-module postgres 'modules/postgres.bicep' = {
+// Em dev usamos um Postgres gratuito externo (ex: Supabase) via devDatabaseConnectionString
+// para nao pagar pelo Flexible Server do Azure num ambiente que e so para teste.
+module postgres 'modules/postgres.bicep' = if (environmentType == 'prod') {
   name: 'postgres'
   params: {
     location: location
@@ -93,7 +99,9 @@ module site 'modules/static-web-app.bicep' = if (environmentType == 'prod') {
   }
 }
 
-var postgresConnectionString = 'Host=${postgres.outputs.host};Port=5432;Database=${postgres.outputs.databaseName};Username=${postgres.outputs.administratorLogin};Password=${postgresAdminPassword};SSL Mode=Require;Trust Server Certificate=true;Pooling=true;'
+var postgresConnectionString = environmentType == 'prod'
+  ? 'Host=${postgres!.outputs.host};Port=5432;Database=${postgres!.outputs.databaseName};Username=${postgres!.outputs.administratorLogin};Password=${postgresAdminPassword};SSL Mode=Require;Trust Server Certificate=true;Pooling=true;'
+  : devDatabaseConnectionString
 var effectiveCorsAllowedOrigin = empty(corsAllowedOrigin) ? 'https://${web.outputs.defaultHostname}' : corsAllowedOrigin
 
 module api 'modules/container-apps.bicep' = {
@@ -152,8 +160,8 @@ output AGENTS_CONTAINER_APP_NAME string = enableAiAgents ? agents!.outputs.conta
 output OPENAI_ENDPOINT string = enableAiAgents ? openai!.outputs.endpoint : ''
 output OPENAI_DEPLOYMENT string = enableAiAgents ? openai!.outputs.deploymentName : ''
 
-output POSTGRES_HOST string = postgres.outputs.host
-output POSTGRES_DB string = postgres.outputs.databaseName
-output POSTGRES_USER string = postgres.outputs.administratorLogin
+output POSTGRES_HOST string = environmentType == 'prod' ? postgres!.outputs.host : ''
+output POSTGRES_DB string = environmentType == 'prod' ? postgres!.outputs.databaseName : ''
+output POSTGRES_USER string = environmentType == 'prod' ? postgres!.outputs.administratorLogin : ''
 @secure()
-output POSTGRES_PASSWORD string = postgresAdminPassword
+output POSTGRES_PASSWORD string = environmentType == 'prod' ? postgresAdminPassword : ''

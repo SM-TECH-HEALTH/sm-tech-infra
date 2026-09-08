@@ -14,6 +14,9 @@
     "postgresAdminPassword": {
       "value": "${POSTGRES_ADMIN_PASSWORD}"
     },
+    "devDatabaseConnectionString": {
+      "value": "${DEV_DATABASE_CONNECTION_STRING=}"
+    },
     "jwtSecretKey": {
       "value": "${JWT_SECRET_KEY}"
     },
