@@ -12,9 +12,9 @@
 #
 # Se o pipeline atual ja tem DEV_DATABASE_CONNECTION_STRING (hoje, so o
 # sm-tech-back), este script nao faz nada. Caso contrario, reaproveita o
-# valor ja gravado no Container App em producao via `az containerapp secret
-# show --show-values` (a mesma identidade do pipeline ja tem permissao,
-# pois ela atualiza a imagem do Container App nos passos seguintes).
+# valor ja gravado no Container App via `az containerapp secret list
+# --show-values` (a mesma identidade do pipeline ja tem permissao, pois ela
+# atualiza a imagem do Container App nos passos seguintes).
 #
 # Uso: AZURE_ENV_NAME=dev ./scripts/ensure-dev-database-secret.sh
 set -euo pipefail
@@ -33,9 +33,9 @@ if [ -z "$API_NAME" ]; then
   exit 0
 fi
 
-EXISTING_CONN=$(az containerapp secret show \
+EXISTING_CONN=$(az containerapp secret list \
   --name "$API_NAME" --resource-group "$API_RG" \
-  --secret-name connection-string --show-values --query value -o tsv 2>/dev/null || true)
+  --show-values --query "[?name=='connection-string'].value | [0]" -o tsv)
 
 if [ -n "$EXISTING_CONN" ] && [ "$EXISTING_CONN" != "None" ]; then
   azd env set DEV_DATABASE_CONNECTION_STRING "$EXISTING_CONN"
