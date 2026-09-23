@@ -42,6 +42,12 @@ param apiCustomDomainName string = ''
 @description('Resource ID do managed certificate do dominio customizado da API.')
 param apiCustomDomainCertificateId string = ''
 
+@description('Dominio customizado dos agentes. Vazio = sem dominio custom.')
+param agentsCustomDomainName string = ''
+
+@description('Resource ID do managed certificate do dominio customizado dos agentes.')
+param agentsCustomDomainCertificateId string = ''
+
 @description('Quando true, cria Azure OpenAI e o Container App dos agentes. O workflow sm-tech-agents liga isso; nos pipelines de back/front o script ensure-container-apps-state.sh liga quando o Container App dos agentes ja existe (senao o provision deles apagaria a URL dos agentes da API).')
 param deployAiAgents string = 'false'
 
@@ -138,6 +144,7 @@ module api 'modules/container-apps.bicep' = {
     apiCustomDomainName: apiCustomDomainName
     apiCustomDomainCertificateId: apiCustomDomainCertificateId
     agentsContainerAppName: enableAiAgents ? agentsContainerAppName : ''
+    agentsCustomDomainName: agentsCustomDomainName
   }
 }
 
@@ -172,6 +179,8 @@ module agents 'modules/agents-app.bicep' = if (enableAiAgents) {
       ? effectiveCorsAllowedOrigin
       : '${effectiveCorsAllowedOrigin},https://${web.outputs.defaultHostname}'
     databaseConnectionString: postgresConnectionString
+    customDomainName: agentsCustomDomainName
+    customDomainCertificateId: agentsCustomDomainCertificateId
     azureOpenAiEndpoint: openai!.outputs.endpoint
     azureOpenAiAccountName: openai!.outputs.accountName
     azureOpenAiDeployment: openai!.outputs.deploymentName

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Reafirma o dominio customizado da API (api-demo.smtechsistemas.com.br) antes
+# Reafirma os dominios customizados da API (api-demo.smtechsistemas.com.br) e
+# dos agentes (agentes-demo.smtechsistemas.com.br) antes
 # de QUALQUER `azd provision` do ambiente compartilhado.
 #
 # Motivo: o Container App da API, o Static Web App do front e o Container App
@@ -20,6 +21,7 @@
 set -euo pipefail
 
 API_CUSTOM_DOMAIN_HOSTNAME="api-demo.smtechsistemas.com.br"
+AGENTS_CUSTOM_DOMAIN_HOSTNAME="agentes-demo.smtechsistemas.com.br"
 
 CAE_JSON=$(az containerapp env list --query "[?tags.\"azd-env-name\"=='$AZURE_ENV_NAME'] | [0]" -o json)
 CAE_NAME=$(echo "$CAE_JSON" | jq -r '.name // empty')
@@ -30,14 +32,23 @@ if [ -z "$CAE_NAME" ]; then
   exit 0
 fi
 
-CERT_ID=$(az containerapp env certificate list \
-  --name "$CAE_NAME" --resource-group "$CAE_RG" \
-  --query "[?properties.subjectName=='$API_CUSTOM_DOMAIN_HOSTNAME'].id | [0]" -o tsv)
+# reafirmar_dominio <hostname> <VAR_NOME> <VAR_CERTIFICADO>
+reafirmar_dominio() {
+  local hostname="$1" var_nome="$2" var_cert="$3" cert_id
+  cert_id=$(az containerapp env certificate list \
+    --name "$CAE_NAME" --resource-group "$CAE_RG" \
+    --query "[?properties.subjectName=='$hostname'].id | [0]" -o tsv)
 
-if [ -n "$CERT_ID" ] && [ "$CERT_ID" != "None" ]; then
-  azd env set API_CUSTOM_DOMAIN_NAME "$API_CUSTOM_DOMAIN_HOSTNAME"
-  azd env set API_CUSTOM_DOMAIN_CERTIFICATE_ID "$CERT_ID"
-  echo "Dominio customizado reafirmado: $API_CUSTOM_DOMAIN_HOSTNAME -> $CERT_ID"
-else
-  echo "Certificado gerenciado para $API_CUSTOM_DOMAIN_HOSTNAME nao encontrado ainda; provision seguira sem dominio custom."
-fi
+  if [ -n "$cert_id" ] && [ "$cert_id" != "None" ]; then
+    azd env set "$var_nome" "$hostname"
+    azd env set "$var_cert" "$cert_id"
+    echo "Dominio customizado reafirmado: $hostname -> $cert_id"
+  else
+    echo "Certificado gerenciado para $hostname nao encontrado ainda; provision seguira sem esse dominio custom."
+  fi
+}
+
+reafirmar_dominio "$API_CUSTOM_DOMAIN_HOSTNAME" API_CUSTOM_DOMAIN_NAME API_CUSTOM_DOMAIN_CERTIFICATE_ID
+# Agentes (sm-tech-agents): mesmo problema — o ingress do Container App dos
+# agents tambem e declarado inteiro no Bicep (agents-app.bicep).
+reafirmar_dominio "$AGENTS_CUSTOM_DOMAIN_HOSTNAME" AGENTS_CUSTOM_DOMAIN_NAME AGENTS_CUSTOM_DOMAIN_CERTIFICATE_ID
