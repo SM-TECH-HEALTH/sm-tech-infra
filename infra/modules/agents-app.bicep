@@ -37,6 +37,12 @@ param azureOpenAiEndpoint string
 @description('Nome da conta Cognitive Services (OpenAI) ja provisionada, no mesmo resource group. A chave e lida daqui via listKeys() para nao precisar passar um output secure atraves de um modulo condicional (BCP426).')
 param azureOpenAiAccountName string
 
+@description('Dominio customizado dos agentes (ex. agentes-demo.smtechsistemas.com.br). Vazio = sem dominio custom.')
+param customDomainName string = ''
+
+@description('Resource ID do managed certificate do dominio customizado. Obrigatorio quando customDomainName nao esta vazio.')
+param customDomainCertificateId string = ''
+
 @secure()
 @description('Connection string do Postgres no formato Npgsql (a mesma da API). Vazio = sem banco: base de conhecimento cai para os YAML e o historico do chat fica em memoria.')
 param databaseConnectionString string = ''
@@ -67,6 +73,15 @@ resource agentsApp 'Microsoft.App/containerApps@2023-05-01' = {
         targetPort: 8080
         transport: 'auto'
         allowInsecure: false
+        // Declarado aqui (mesmo motivo da API em container-apps.bicep): sem
+        // isso, todo provision substitui o ingress e o binding do dominio some.
+        customDomains: !empty(customDomainName) ? [
+          {
+            name: customDomainName
+            bindingType: 'SniEnabled'
+            certificateId: customDomainCertificateId
+          }
+        ] : []
       }
       secrets: concat([
         {
@@ -155,4 +170,4 @@ resource agentsApp 'Microsoft.App/containerApps@2023-05-01' = {
 }
 
 output containerAppName string = agentsApp.name
-output agentsUri string = 'https://${agentsApp.properties.configuration.ingress.fqdn}'
+output agentsUri string = !empty(customDomainName) ? 'https://${customDomainName}' : 'https://${agentsApp.properties.configuration.ingress.fqdn}'

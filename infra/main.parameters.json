@@ -47,6 +47,12 @@
     "agentsInitialContainerImage": {
       "value": "${AGENTS_CONTAINER_IMAGE=mcr.microsoft.com/azuredocs/containerapps-helloworld:latest}"
     },
+    "agentsCustomDomainName": {
+      "value": "${AGENTS_CUSTOM_DOMAIN_NAME=}"
+    },
+    "agentsCustomDomainCertificateId": {
+      "value": "${AGENTS_CUSTOM_DOMAIN_CERTIFICATE_ID=}"
+    },
     "apiCustomDomainName": {
       "value": "${API_CUSTOM_DOMAIN_NAME=}"
     },
