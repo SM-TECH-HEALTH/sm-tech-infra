@@ -42,22 +42,25 @@ param apiCustomDomainName string = ''
 @description('Resource ID do managed certificate do dominio customizado da API.')
 param apiCustomDomainCertificateId string = ''
 
-@description('Quando true, cria Azure OpenAI (gpt-4o) e o Container App dos agentes. O workflow sm-tech-agents liga isso; back/front nao definem o valor para nao resetar.')
+@description('Quando true, cria Azure OpenAI e o Container App dos agentes. O workflow sm-tech-agents liga isso; nos pipelines de back/front o script ensure-container-apps-state.sh liga quando o Container App dos agentes ja existe (senao o provision deles apagaria a URL dos agentes da API).')
 param deployAiAgents string = 'false'
 
 @description('Regiao do Azure OpenAI. gpt-4o raramente esta em brazilsouth.')
 param openaiLocation string = 'eastus2'
 
-@description('Nome do deployment Foundry (AZURE_OPENAI_DEPLOYMENT).')
-param openaiDeploymentName string = 'gpt-4o'
+@description('Modelo do catalogo Foundry. Vazio = gpt-4o-mini em dev (custo minimo, so teste) e gpt-4o em prod.')
+param openaiModelName string = ''
 
-@description('Versao do modelo gpt-4o no catalogo.')
-param openaiModelVersion string = '2024-08-06'
+@description('Nome do deployment Foundry (AZURE_OPENAI_DEPLOYMENT). Vazio = mesmo nome do modelo.')
+param openaiDeploymentName string = ''
+
+@description('Versao do modelo no catalogo. Vazio = versao padrao do modelo escolhido.')
+param openaiModelVersion string = ''
 
 @description('SKU do deployment. GlobalStandard e o mais comum para gpt-4o PAYG.')
 param openaiSkuName string = 'GlobalStandard'
 
-@description('Imagem inicial do Container App de agentes.')
+@description('Imagem do Container App de agentes. O script ensure-container-apps-state.sh repassa a imagem em uso para o provision nao voltar ao helloworld.')
 param agentsInitialContainerImage string = 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
 
 var resourceToken = uniqueString(subscription().id, resourceGroup().id, environmentName)
@@ -66,6 +69,14 @@ var postgresAdministratorLogin = 'smtechadmin'
 var postgresDatabaseName = 'SmTechHospital'
 var enableAiAgents = toLower(deployAiAgents) == 'true'
 var openaiAccountName = take(replace(toLower('smt${environmentName}oai${resourceToken}'), '-', ''), 24)
+var agentsContainerAppName = take('${namePrefix}-agt-${resourceToken}', 32)
+var effectiveOpenaiModelName = !empty(openaiModelName) ? openaiModelName : (environmentType == 'prod' ? 'gpt-4o' : 'gpt-4o-mini')
+var effectiveOpenaiDeploymentName = !empty(openaiDeploymentName) ? openaiDeploymentName : effectiveOpenaiModelName
+var defaultOpenaiModelVersions = {
+  'gpt-4o': '2024-08-06'
+  'gpt-4o-mini': '2024-07-18'
+}
+var effectiveOpenaiModelVersion = !empty(openaiModelVersion) ? openaiModelVersion : defaultOpenaiModelVersions[effectiveOpenaiModelName]
 
 // Em dev usamos um Postgres gratuito externo (ex: Supabase) via devDatabaseConnectionString
 // para nao pagar pelo Flexible Server do Azure num ambiente que e so para teste.
@@ -124,6 +135,7 @@ module api 'modules/container-apps.bicep' = {
     corsAllowedOrigin: effectiveCorsAllowedOrigin
     apiCustomDomainName: apiCustomDomainName
     apiCustomDomainCertificateId: apiCustomDomainCertificateId
+    agentsContainerAppName: enableAiAgents ? agentsContainerAppName : ''
   }
 }
 
@@ -134,11 +146,12 @@ module openai 'modules/openai.bicep' = if (enableAiAgents) {
     environmentName: environmentName
     accountName: openaiAccountName
     customSubDomainName: openaiAccountName
-    deploymentName: openaiDeploymentName
-    modelName: 'gpt-4o'
-    modelVersion: openaiModelVersion
+    deploymentName: effectiveOpenaiDeploymentName
+    modelName: effectiveOpenaiModelName
+    modelVersion: effectiveOpenaiModelVersion
     skuName: openaiSkuName
-    capacity: environmentType == 'prod' ? 30 : 10
+    // GlobalStandard cobra so por token; capacidade (TPM) maior nao gera custo fixo.
+    capacity: environmentType == 'prod' ? 30 : 50
   }
 }
 
@@ -148,11 +161,15 @@ module agents 'modules/agents-app.bicep' = if (enableAiAgents) {
     location: location
     environmentName: environmentName
     environmentType: environmentType
-    containerAppName: take('${namePrefix}-agt-${resourceToken}', 32)
+    containerAppName: agentsContainerAppName
     containerAppsEnvironmentId: api.outputs.containerAppsEnvironmentId
     initialContainerImage: agentsInitialContainerImage
     jwtSecretKey: jwtSecretKey
-    corsAllowedOrigin: effectiveCorsAllowedOrigin
+    // SPA pode ser aberto pelo dominio custom ou pelo host padrao do SWA.
+    corsAllowedOrigin: effectiveCorsAllowedOrigin == 'https://${web.outputs.defaultHostname}'
+      ? effectiveCorsAllowedOrigin
+      : '${effectiveCorsAllowedOrigin},https://${web.outputs.defaultHostname}'
+    databaseConnectionString: postgresConnectionString
     azureOpenAiEndpoint: openai!.outputs.endpoint
     azureOpenAiAccountName: openai!.outputs.accountName
     azureOpenAiDeployment: openai!.outputs.deploymentName

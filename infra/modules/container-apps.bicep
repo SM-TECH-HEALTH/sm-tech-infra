@@ -37,6 +37,9 @@ param apiCustomDomainName string = ''
 @description('Resource ID do managed certificate (Microsoft.App/managedEnvironments/managedCertificates) do dominio customizado. Obrigatorio quando apiCustomDomainName nao esta vazio.')
 param apiCustomDomainCertificateId string = ''
 
+@description('Nome do Container App dos agentes (sm-tech-agents). Vazio = agentes desligados; a API expoe AgentesIa__Habilitado=false.')
+param agentsContainerAppName string = ''
+
 // Container Apps Environment sem Log Analytics. Para inspecionar logs no
 // ambiente lab use `az containerapp logs show --follow` enquanto a app esta
 // rodando. Para producao, reintroduzir o workspace.
@@ -118,6 +121,19 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
             {
               name: 'Cors__AllowedOrigins__0'
               value: corsAllowedOrigin
+            }
+            // URL do sm-tech-agents montada a partir do dominio padrao do
+            // Container Apps Environment (o FQDN de um Container App e sempre
+            // <nome>.<defaultDomain>). A API repassa para o SPA em
+            // /v1/assistentesia/config e usa para avisar recarga da base de
+            // conhecimento.
+            {
+              name: 'AgentesIa__UrlBase'
+              value: empty(agentsContainerAppName) ? '' : 'https://${agentsContainerAppName}.${containerAppsEnvironment.properties.defaultDomain}'
+            }
+            {
+              name: 'AgentesIa__Habilitado'
+              value: empty(agentsContainerAppName) ? 'false' : 'true'
             }
           ]
           resources: {
