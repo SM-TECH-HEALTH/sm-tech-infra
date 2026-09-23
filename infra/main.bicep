@@ -48,7 +48,7 @@ param deployAiAgents string = 'false'
 @description('Regiao do Azure OpenAI. gpt-4o raramente esta em brazilsouth.')
 param openaiLocation string = 'eastus2'
 
-@description('Modelo do catalogo Foundry. Vazio = gpt-4o-mini em dev (custo minimo, so teste) e gpt-4o em prod.')
+@description('Modelo do catalogo Foundry. Vazio = gpt-4.1-mini em dev (custo minimo, so teste) e gpt-4o em prod. gpt-4o-mini 2024-07-18 e gpt-4o 2024-08-06 estao "Deprecating" e a Azure recusa deployment novo deles.')
 param openaiModelName string = ''
 
 @description('Nome do deployment Foundry (AZURE_OPENAI_DEPLOYMENT). Vazio = mesmo nome do modelo.')
@@ -70,11 +70,13 @@ var postgresDatabaseName = 'SmTechHospital'
 var enableAiAgents = toLower(deployAiAgents) == 'true'
 var openaiAccountName = take(replace(toLower('smt${environmentName}oai${resourceToken}'), '-', ''), 24)
 var agentsContainerAppName = take('${namePrefix}-agt-${resourceToken}', 32)
-var effectiveOpenaiModelName = !empty(openaiModelName) ? openaiModelName : (environmentType == 'prod' ? 'gpt-4o' : 'gpt-4o-mini')
+var effectiveOpenaiModelName = !empty(openaiModelName) ? openaiModelName : (environmentType == 'prod' ? 'gpt-4o' : 'gpt-4.1-mini')
 var effectiveOpenaiDeploymentName = !empty(openaiDeploymentName) ? openaiDeploymentName : effectiveOpenaiModelName
 var defaultOpenaiModelVersions = {
-  'gpt-4o': '2024-08-06'
-  'gpt-4o-mini': '2024-07-18'
+  'gpt-4o': '2024-11-20'
+  'gpt-4.1': '2025-04-14'
+  'gpt-4.1-mini': '2025-04-14'
+  'gpt-4.1-nano': '2025-04-14'
 }
 var effectiveOpenaiModelVersion = !empty(openaiModelVersion) ? openaiModelVersion : defaultOpenaiModelVersions[effectiveOpenaiModelName]
 
