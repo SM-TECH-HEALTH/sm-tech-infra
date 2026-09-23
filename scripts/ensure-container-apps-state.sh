@@ -38,7 +38,10 @@ AGENTS_IMAGE=$(imagem_atual agents)
 if [ -n "$AGENTS_IMAGE" ]; then
   azd env set AGENTS_CONTAINER_IMAGE "$AGENTS_IMAGE"
   echo "Imagem dos agents preservada: $AGENTS_IMAGE"
-  if [ -z "$(azd env get-value DEPLOY_AI_AGENTS 2>/dev/null || true)" ]; then
+  # `azd env get-value` de chave inexistente escreve erro no stdout (nao vem
+  # vazio) — por isso le o valor por `get-values` e compara exatamente.
+  DEPLOY_ATUAL=$(azd env get-values | sed -n 's/^DEPLOY_AI_AGENTS="\{0,1\}\([^"]*\)"\{0,1\}$/\1/p')
+  if [ "$DEPLOY_ATUAL" != "true" ] && [ "$DEPLOY_ATUAL" != "false" ]; then
     azd env set DEPLOY_AI_AGENTS true
     echo "Container App dos agents existe; DEPLOY_AI_AGENTS=true neste provision."
   fi
