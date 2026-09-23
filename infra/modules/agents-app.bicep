@@ -37,6 +37,10 @@ param azureOpenAiEndpoint string
 @description('Nome da conta Cognitive Services (OpenAI) ja provisionada, no mesmo resource group. A chave e lida daqui via listKeys() para nao precisar passar um output secure atraves de um modulo condicional (BCP426).')
 param azureOpenAiAccountName string
 
+@secure()
+@description('Connection string do Postgres no formato Npgsql (a mesma da API). Vazio = sem banco: base de conhecimento cai para os YAML e o historico do chat fica em memoria.')
+param databaseConnectionString string = ''
+
 @description('Nome do deployment no Foundry.')
 param azureOpenAiDeployment string = 'gpt-4o'
 
@@ -64,7 +68,7 @@ resource agentsApp 'Microsoft.App/containerApps@2023-05-01' = {
         transport: 'auto'
         allowInsecure: false
       }
-      secrets: [
+      secrets: concat([
         {
           name: 'jwt-secret-key'
           value: jwtSecretKey
@@ -73,14 +77,19 @@ resource agentsApp 'Microsoft.App/containerApps@2023-05-01' = {
           name: 'azure-openai-key'
           value: openAiAccount.listKeys().key1
         }
-      ]
+      ], empty(databaseConnectionString) ? [] : [
+        {
+          name: 'database-connection-string'
+          value: databaseConnectionString
+        }
+      ])
     }
     template: {
       containers: [
         {
           name: 'agents'
           image: initialContainerImage
-          env: [
+          env: concat([
             {
               name: 'ENVIRONMENT'
               value: environmentType == 'prod' ? 'production' : 'staging'
@@ -125,7 +134,12 @@ resource agentsApp 'Microsoft.App/containerApps@2023-05-01' = {
               name: 'CORS_ORIGINS'
               value: corsAllowedOrigin
             }
-          ]
+          ], empty(databaseConnectionString) ? [] : [
+            {
+              name: 'DATABASE_CONNECTION_STRING'
+              secretRef: 'database-connection-string'
+            }
+          ])
           resources: {
             cpu: json(environmentType == 'prod' ? '0.5' : '0.25')
             memory: environmentType == 'prod' ? '1Gi' : '0.5Gi'

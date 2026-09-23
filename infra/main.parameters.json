@@ -29,14 +29,23 @@
     "openaiLocation": {
       "value": "${OPENAI_LOCATION=eastus2}"
     },
+    "openaiModelName": {
+      "value": "${OPENAI_MODEL_NAME=}"
+    },
     "openaiDeploymentName": {
-      "value": "${OPENAI_DEPLOYMENT_NAME=gpt-4o}"
+      "value": "${OPENAI_DEPLOYMENT_NAME=}"
     },
     "openaiModelVersion": {
-      "value": "${OPENAI_MODEL_VERSION=2024-08-06}"
+      "value": "${OPENAI_MODEL_VERSION=}"
     },
     "openaiSkuName": {
       "value": "${OPENAI_SKU_NAME=GlobalStandard}"
+    },
+    "initialContainerImage": {
+      "value": "${API_CONTAINER_IMAGE=mcr.microsoft.com/azuredocs/containerapps-helloworld:latest}"
+    },
+    "agentsInitialContainerImage": {
+      "value": "${AGENTS_CONTAINER_IMAGE=mcr.microsoft.com/azuredocs/containerapps-helloworld:latest}"
     },
     "apiCustomDomainName": {
       "value": "${API_CUSTOM_DOMAIN_NAME=}"
